@@ -20,7 +20,14 @@
 package org.elasticsearch.client;
 
 import org.apache.http.HttpEntity;
+import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpHead;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -64,6 +71,8 @@ import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Modifier;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -77,24 +86,54 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 
 public class RequestTests extends ESTestCase {
 
+    public void testConstructor() throws Exception {
+        final String method = randomFrom("GET", "PUT", "POST", "HEAD", "DELETE");
+        final String endpoint = randomAlphaOfLengthBetween(1, 10);
+        final Map<String, String> parameters = singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
+        final HttpEntity entity = randomBoolean() ? new StringEntity(randomAlphaOfLengthBetween(1, 100), ContentType.TEXT_PLAIN) : null;
+
+        NullPointerException e = expectThrows(NullPointerException.class, () -> new Request(null, endpoint, parameters, entity));
+        assertEquals("method cannot be null", e.getMessage());
+
+        e = expectThrows(NullPointerException.class, () -> new Request(method, null, parameters, entity));
+        assertEquals("endpoint cannot be null", e.getMessage());
+
+        e = expectThrows(NullPointerException.class, () -> new Request(method, endpoint, null, entity));
+        assertEquals("parameters cannot be null", e.getMessage());
+
+        final Request request = new Request(method, endpoint, parameters, entity);
+        assertEquals(method, request.getMethod());
+        assertEquals(endpoint, request.getEndpoint());
+        assertEquals(parameters, request.getParameters());
+        assertEquals(entity, request.getEntity());
+
+        final Constructor<?>[] constructors = Request.class.getConstructors();
+        assertEquals("Expected only 1 constructor", 1, constructors.length);
+        assertTrue("Request constructor is not public", Modifier.isPublic(constructors[0].getModifiers()));
+    }
+
+    public void testClassVisibility() throws Exception {
+        assertTrue("Request class is not public", Modifier.isPublic(Request.class.getModifiers()));
+    }
+
     public void testPing() {
         Request request = Request.ping();
-        assertEquals("/", request.endpoint);
-        assertEquals(0, request.params.size());
-        assertNull(request.entity);
-        assertEquals("HEAD", request.method);
+        assertEquals("/", request.getEndpoint());
+        assertEquals(0, request.getParameters().size());
+        assertNull(request.getEntity());
+        assertEquals(HttpHead.METHOD_NAME, request.getMethod());
     }
 
     public void testInfo() {
         Request request = Request.info();
-        assertEquals("/", request.endpoint);
-        assertEquals(0, request.params.size());
-        assertNull(request.entity);
-        assertEquals("GET", request.method);
+        assertEquals("/", request.getEndpoint());
+        assertEquals(0, request.getParameters().size());
+        assertNull(request.getEntity());
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
     }
 
     public void testGet() {
-        getAndExistsTest(Request::get, "GET");
+        getAndExistsTest(Request::get, HttpGet.METHOD_NAME);
     }
 
     public void testDelete() throws IOException {
@@ -124,14 +163,14 @@ public class RequestTests extends ESTestCase {
         }
 
         Request request = Request.delete(deleteRequest);
-        assertEquals("/" + index + "/" + type + "/" + id, request.endpoint);
-        assertEquals(expectedParams, request.params);
-        assertEquals("DELETE", request.method);
-        assertNull(request.entity);
+        assertEquals("/" + index + "/" + type + "/" + id, request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertEquals("DELETE", request.getMethod());
+        assertNull(request.getEntity());
     }
 
     public void testExists() {
-        getAndExistsTest(Request::exists, "HEAD");
+        getAndExistsTest(Request::exists, HttpHead.METHOD_NAME);
     }
 
     private static void getAndExistsTest(Function<GetRequest, Request> requestConverter, String method) {
@@ -200,10 +239,10 @@ public class RequestTests extends ESTestCase {
             }
         }
         Request request = requestConverter.apply(getRequest);
-        assertEquals("/" + index + "/" + type + "/" + id, request.endpoint);
-        assertEquals(expectedParams, request.params);
-        assertNull(request.entity);
-        assertEquals(method, request.method);
+        assertEquals("/" + index + "/" + type + "/" + id, request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertNull(request.getEntity());
+        assertEquals(method, request.getMethod());
     }
 
     public void testIndex() throws IOException {
@@ -216,9 +255,9 @@ public class RequestTests extends ESTestCase {
 
         Map<String, String> expectedParams = new HashMap<>();
 
-        String method = "POST";
+        String method = HttpPost.METHOD_NAME;
         if (id != null) {
-            method = "PUT";
+            method = HttpPut.METHOD_NAME;
             if (randomBoolean()) {
                 indexRequest.opType(DocWriteRequest.OpType.CREATE);
             }
@@ -267,16 +306,16 @@ public class RequestTests extends ESTestCase {
 
         Request request = Request.index(indexRequest);
         if (indexRequest.opType() == DocWriteRequest.OpType.CREATE) {
-            assertEquals("/" + index + "/" + type + "/" + id + "/_create", request.endpoint);
+            assertEquals("/" + index + "/" + type + "/" + id + "/_create", request.getEndpoint());
         } else if (id != null) {
-            assertEquals("/" + index + "/" + type + "/" + id, request.endpoint);
+            assertEquals("/" + index + "/" + type + "/" + id, request.getEndpoint());
         } else {
-            assertEquals("/" + index + "/" + type, request.endpoint);
+            assertEquals("/" + index + "/" + type, request.getEndpoint());
         }
-        assertEquals(expectedParams, request.params);
-        assertEquals(method, request.method);
+        assertEquals(expectedParams, request.getParameters());
+        assertEquals(method, request.getMethod());
 
-        HttpEntity entity = request.entity;
+        HttpEntity entity = request.getEntity();
         assertTrue(entity instanceof ByteArrayEntity);
         assertEquals(indexRequest.getContentType().mediaTypeWithoutParameters(), entity.getContentType().getValue());
         try (XContentParser parser = createParser(xContentType.xContent(), entity.getContent())) {
@@ -367,11 +406,11 @@ public class RequestTests extends ESTestCase {
         }
 
         Request request = Request.update(updateRequest);
-        assertEquals("/" + index + "/" + type + "/" + id + "/_update", request.endpoint);
-        assertEquals(expectedParams, request.params);
-        assertEquals("POST", request.method);
+        assertEquals("/" + index + "/" + type + "/" + id + "/_update", request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
 
-        HttpEntity entity = request.entity;
+        HttpEntity entity = request.getEntity();
         assertTrue(entity instanceof ByteArrayEntity);
 
         UpdateRequest parsedUpdateRequest = new UpdateRequest();
@@ -485,12 +524,12 @@ public class RequestTests extends ESTestCase {
         }
 
         Request request = Request.bulk(bulkRequest);
-        assertEquals("/_bulk", request.endpoint);
-        assertEquals(expectedParams, request.params);
-        assertEquals("POST", request.method);
-        assertEquals(xContentType.mediaTypeWithoutParameters(), request.entity.getContentType().getValue());
-        byte[] content = new byte[(int) request.entity.getContentLength()];
-        try (InputStream inputStream = request.entity.getContent()) {
+        assertEquals("/_bulk", request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals(xContentType.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
+        byte[] content = new byte[(int) request.getEntity().getContentLength()];
+        try (InputStream inputStream = request.getEntity().getContent()) {
             Streams.readFully(inputStream, content);
         }
 
@@ -541,7 +580,7 @@ public class RequestTests extends ESTestCase {
             bulkRequest.add(new DeleteRequest("index", "type", "2"));
 
             Request request = Request.bulk(bulkRequest);
-            assertEquals(XContentType.JSON.mediaTypeWithoutParameters(), request.entity.getContentType().getValue());
+            assertEquals(XContentType.JSON.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
         }
         {
             XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
@@ -551,7 +590,7 @@ public class RequestTests extends ESTestCase {
             bulkRequest.add(new DeleteRequest("index", "type", "2"));
 
             Request request = Request.bulk(bulkRequest);
-            assertEquals(xContentType.mediaTypeWithoutParameters(), request.entity.getContentType().getValue());
+            assertEquals(xContentType.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
         }
         {
             XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
@@ -563,7 +602,7 @@ public class RequestTests extends ESTestCase {
             }
 
             Request request = Request.bulk(new BulkRequest().add(updateRequest));
-            assertEquals(xContentType.mediaTypeWithoutParameters(), request.entity.getContentType().getValue());
+            assertEquals(xContentType.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
         }
         {
             BulkRequest bulkRequest = new BulkRequest();
@@ -603,12 +642,12 @@ public class RequestTests extends ESTestCase {
     }
 
     public void testSearch() throws Exception {
-        SearchRequest searchRequest = new SearchRequest();
         int numIndices = randomIntBetween(0, 5);
         String[] indices = new String[numIndices];
         for (int i = 0; i < numIndices; i++) {
             indices[i] = "index-" + randomAlphaOfLengthBetween(2, 5);
         }
+        SearchRequest searchRequest = new SearchRequest(indices);
         searchRequest.indices(indices);
         int numTypes = randomIntBetween(0, 5);
         String[] types = new String[numTypes];
@@ -659,44 +698,47 @@ public class RequestTests extends ESTestCase {
             expectedParams.put("expand_wildcards", "none");
         }
 
-        SearchSourceBuilder searchSourceBuilder = null;
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        //rarely skip setting the search source completely
         if (frequently()) {
-            searchSourceBuilder = new SearchSourceBuilder();
-            if (randomBoolean()) {
-                searchSourceBuilder.size(randomIntBetween(0, Integer.MAX_VALUE));
-            }
-            if (randomBoolean()) {
-                searchSourceBuilder.from(randomIntBetween(0, Integer.MAX_VALUE));
-            }
-            if (randomBoolean()) {
-                searchSourceBuilder.minScore(randomFloat());
-            }
-            if (randomBoolean()) {
-                searchSourceBuilder.explain(randomBoolean());
-            }
-            if (randomBoolean()) {
-                searchSourceBuilder.profile(randomBoolean());
-            }
-            if (randomBoolean()) {
-                searchSourceBuilder.highlighter(new HighlightBuilder().field(randomAlphaOfLengthBetween(3, 10)));
-            }
-            if (randomBoolean()) {
-                searchSourceBuilder.query(new TermQueryBuilder(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10)));
-            }
-            if (randomBoolean()) {
-                searchSourceBuilder.aggregation(new TermsAggregationBuilder(randomAlphaOfLengthBetween(3, 10), ValueType.STRING)
-                        .field(randomAlphaOfLengthBetween(3, 10)));
-            }
-            if (randomBoolean()) {
-                searchSourceBuilder.suggest(new SuggestBuilder().addSuggestion(randomAlphaOfLengthBetween(3, 10),
-                        new CompletionSuggestionBuilder(randomAlphaOfLengthBetween(3, 10))));
-            }
-            if (randomBoolean()) {
-                searchSourceBuilder.addRescorer(new QueryRescorerBuilder(
-                        new TermQueryBuilder(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10))));
-            }
-            if (randomBoolean()) {
-                searchSourceBuilder.collapse(new CollapseBuilder(randomAlphaOfLengthBetween(3, 10)));
+            //frequently set the search source to have some content, otherwise leave it empty but still set it
+            if (frequently()) {
+                if (randomBoolean()) {
+                    searchSourceBuilder.size(randomIntBetween(0, Integer.MAX_VALUE));
+                }
+                if (randomBoolean()) {
+                    searchSourceBuilder.from(randomIntBetween(0, Integer.MAX_VALUE));
+                }
+                if (randomBoolean()) {
+                    searchSourceBuilder.minScore(randomFloat());
+                }
+                if (randomBoolean()) {
+                    searchSourceBuilder.explain(randomBoolean());
+                }
+                if (randomBoolean()) {
+                    searchSourceBuilder.profile(randomBoolean());
+                }
+                if (randomBoolean()) {
+                    searchSourceBuilder.highlighter(new HighlightBuilder().field(randomAlphaOfLengthBetween(3, 10)));
+                }
+                if (randomBoolean()) {
+                    searchSourceBuilder.query(new TermQueryBuilder(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10)));
+                }
+                if (randomBoolean()) {
+                    searchSourceBuilder.aggregation(new TermsAggregationBuilder(randomAlphaOfLengthBetween(3, 10), ValueType.STRING)
+                            .field(randomAlphaOfLengthBetween(3, 10)));
+                }
+                if (randomBoolean()) {
+                    searchSourceBuilder.suggest(new SuggestBuilder().addSuggestion(randomAlphaOfLengthBetween(3, 10),
+                            new CompletionSuggestionBuilder(randomAlphaOfLengthBetween(3, 10))));
+                }
+                if (randomBoolean()) {
+                    searchSourceBuilder.addRescorer(new QueryRescorerBuilder(
+                            new TermQueryBuilder(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10))));
+                }
+                if (randomBoolean()) {
+                    searchSourceBuilder.collapse(new CollapseBuilder(randomAlphaOfLengthBetween(3, 10)));
+                }
             }
             searchRequest.source(searchSourceBuilder);
         }
@@ -712,13 +754,10 @@ public class RequestTests extends ESTestCase {
             endpoint.add(type);
         }
         endpoint.add("_search");
-        assertEquals(endpoint.toString(), request.endpoint);
-        assertEquals(expectedParams, request.params);
-        if (searchSourceBuilder == null) {
-            assertNull(request.entity);
-        } else {
-            assertToXContentBody(searchSourceBuilder, request.entity);
-        }
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals(endpoint.toString(), request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(searchSourceBuilder, request.getEntity());
     }
 
     public void testSearchScroll() throws IOException {
@@ -728,11 +767,11 @@ public class RequestTests extends ESTestCase {
             searchScrollRequest.scroll(randomPositiveTimeValue());
         }
         Request request = Request.searchScroll(searchScrollRequest);
-        assertEquals("GET", request.method);
-        assertEquals("/_search/scroll", request.endpoint);
-        assertEquals(0, request.params.size());
-        assertToXContentBody(searchScrollRequest, request.entity);
-        assertEquals(Request.REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.entity.getContentType().getValue());
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_search/scroll", request.getEndpoint());
+        assertEquals(0, request.getParameters().size());
+        assertToXContentBody(searchScrollRequest, request.getEntity());
+        assertEquals(Request.REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
     }
 
     public void testClearScroll() throws IOException {
@@ -742,11 +781,11 @@ public class RequestTests extends ESTestCase {
             clearScrollRequest.addScrollId(randomAlphaOfLengthBetween(5, 10));
         }
         Request request = Request.clearScroll(clearScrollRequest);
-        assertEquals("DELETE", request.method);
-        assertEquals("/_search/scroll", request.endpoint);
-        assertEquals(0, request.params.size());
-        assertToXContentBody(clearScrollRequest, request.entity);
-        assertEquals(Request.REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.entity.getContentType().getValue());
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_search/scroll", request.getEndpoint());
+        assertEquals(0, request.getParameters().size());
+        assertToXContentBody(clearScrollRequest, request.getEntity());
+        assertEquals(Request.REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
     }
 
     private static void assertToXContentBody(ToXContent expectedBody, HttpEntity actualEntity) throws IOException {

@@ -1,7 +1,12 @@
 package org.elasticsearch.gradle.vagrant
 
+import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.FileContentsTask
-import org.gradle.api.*
+import org.gradle.api.GradleException
+import org.gradle.api.InvalidUserDataException
+import org.gradle.api.Plugin
+import org.gradle.api.Project
+import org.gradle.api.Task
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.execution.TaskExecutionAdapter
 import org.gradle.api.internal.artifacts.dependencies.DefaultProjectDependency
@@ -18,7 +23,8 @@ class VagrantTestPlugin implements Plugin<Project> {
             'centos-7',
             'debian-8',
             'debian-9',
-            'fedora-25',
+            'fedora-26',
+            'fedora-27',
             'oel-6',
             'oel-7',
             'opensuse-42',
@@ -41,7 +47,7 @@ class VagrantTestPlugin implements Plugin<Project> {
 
     private static final BATS = 'bats'
     private static final String BATS_TEST_COMMAND ="cd \$BATS_ARCHIVES && sudo bats --tap \$BATS_TESTS/*.$BATS"
-    private static final String PLATFORM_TEST_COMMAND ="rm -rf ~/elasticsearch && rsync -r /elasticsearch/ ~/elasticsearch && cd ~/elasticsearch && \$GRADLE_HOME/bin/gradle test integTest"
+    private static final String PLATFORM_TEST_COMMAND ="rm -rf ~/elasticsearch && rsync -r /elasticsearch/ ~/elasticsearch && cd ~/elasticsearch && ./gradlew test integTest"
 
     @Override
     void apply(Project project) {
@@ -228,43 +234,6 @@ class VagrantTestPlugin implements Plugin<Project> {
         vagrantSetUpTask.dependsOn copyBatsTests, copyBatsUtils, copyBatsArchives, createVersionFile, createUpgradeFromFile
     }
 
-    private static void createCheckVagrantVersionTask(Project project) {
-        project.tasks.create('vagrantCheckVersion', Exec) {
-            description 'Check the Vagrant version'
-            group 'Verification'
-            commandLine 'vagrant', '--version'
-            standardOutput = new ByteArrayOutputStream()
-            doLast {
-                String version = standardOutput.toString().trim()
-                if ((version ==~ /Vagrant 1\.(8\.[6-9]|9\.[0-9])+/) == false && (version ==~ /Vagrant 2\.[0-9]+\.[0-9]+/) == false) {
-                    throw new InvalidUserDataException("Illegal version of vagrant [${version}]. Need [Vagrant 1.8.6+]")
-                }
-            }
-        }
-    }
-
-    private static void createCheckVirtualBoxVersionTask(Project project) {
-        project.tasks.create('virtualboxCheckVersion', Exec) {
-            description 'Check the Virtualbox version'
-            group 'Verification'
-            commandLine 'vboxmanage', '--version'
-            standardOutput = new ByteArrayOutputStream()
-            doLast {
-                String version = standardOutput.toString().trim()
-                try {
-                    String[] versions = version.split('\\.')
-                    int major = Integer.parseInt(versions[0])
-                    int minor = Integer.parseInt(versions[1])
-                    if ((major < 5) || (major == 5 && minor < 1)) {
-                        throw new InvalidUserDataException("Illegal version of virtualbox [${version}]. Need [5.1+]")
-                    }
-                } catch (NumberFormatException | ArrayIndexOutOfBoundsException e) {
-                    throw new InvalidUserDataException("Unable to parse version of virtualbox [${version}]. Required [5.1+]", e)
-                }
-            }
-        }
-    }
-
     private static void createPackagingTestTask(Project project) {
         project.tasks.create('packagingTest') {
             group 'Verification'
@@ -292,8 +261,6 @@ class VagrantTestPlugin implements Plugin<Project> {
         createCleanTask(project)
         createStopTask(project)
         createSmokeTestTask(project)
-        createCheckVagrantVersionTask(project)
-        createCheckVirtualBoxVersionTask(project)
         createPrepareVagrantTestEnvTask(project)
         createPackagingTestTask(project)
         createPlatformTestTask(project)
@@ -394,8 +361,9 @@ class VagrantTestPlugin implements Plugin<Project> {
             TaskExecutionAdapter packagingReproListener = new TaskExecutionAdapter() {
                 @Override
                 void afterExecute(Task task, TaskState state) {
+                    final String gradlew = Os.isFamily(Os.FAMILY_WINDOWS) ? "gradlew" : "./gradlew"
                     if (state.failure != null) {
-                        println "REPRODUCE WITH: gradle ${packaging.path} " +
+                        println "REPRODUCE WITH: ${gradlew} ${packaging.path} " +
                             "-Dtests.seed=${project.extensions.esvagrant.formattedTestSeed} "
                     }
                 }

@@ -17,8 +17,9 @@
  * under the License.
  */
 
-import org.elasticsearch.gradle.test.RestIntegTestTask
+
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.standalone-test'
 
@@ -29,6 +30,10 @@ task bwcTest {
 }
 
 for (Version version : wireCompatVersions) {
+  if (project.cgroupsV2Enabled && version.isVersionBrokenIfCgroupsV2Enabled()) {
+    continue
+  }
+
   String baseName = "v${version}"
 
   Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
@@ -70,11 +75,10 @@ for (Version version : wireCompatVersions) {
     finalizedBy "${baseName}#oldClusterTestCluster#node0.stop"
   }
 
-  Task upgradedClusterTest = tasks.create(name: "${baseName}#upgradedClusterTest", type: RestIntegTestTask) {
-    dependsOn(mixedClusterTestRunner, "${baseName}#oldClusterTestCluster#node0.stop")
-  }
+  Task upgradedClusterTest = tasks.create(name: "${baseName}#upgradedClusterTest", type: RestIntegTestTask)
 
   configure(extensions.findByName("${baseName}#upgradedClusterTestCluster")) {
+    dependsOn mixedClusterTestRunner, "${baseName}#oldClusterTestCluster#node0.stop"
     distribution = 'zip'
     clusterName = 'rolling-upgrade'
     unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }

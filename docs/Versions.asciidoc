@@ -1,7 +1,7 @@
-:version:               5.6.0
+:version:               5.6.9
 :major-version:         5.x
-:lucene_version:        6.6.0
-:lucene_version_path:   6_6_0
+:lucene_version:        6.6.1
+:lucene_version_path:   6_6_1
 :branch:                5.6
 :jdk:                   1.8.0_131
 
@@ -21,7 +21,7 @@ release-state can be: released | prerelease | unreleased
 Javadoc roots used to generate links from Painless's API reference
 ///////
 :java8-javadoc: https://docs.oracle.com/javase/8/docs/api
-:java9-javadoc: http://download.java.net/java/jigsaw/docs/api
+:java9-javadoc: https://docs.oracle.com/javase/9/docs/api
 :joda-time-javadoc: http://www.joda.org/joda-time/apidocs
 :lucene-core-javadoc: http://lucene.apache.org/core/{lucene_version_path}/core
 
@@ -53,4 +53,4 @@ endif::[]
 Shared attribute values are pulled from elastic/docs
 ///////
 
-include::{asciidoc-dir}/../../shared/attributes.asciidoc[]
+include::{asciidoc-dir}/../../shared/attributes62.asciidoc[]

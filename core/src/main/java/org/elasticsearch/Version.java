@@ -138,11 +138,31 @@ public class Version implements Comparable<Version> {
     public static final Version V_5_5_1 = new Version(V_5_5_1_ID, org.apache.lucene.util.Version.LUCENE_6_6_0);
     public static final int V_5_5_2_ID = 5050299;
     public static final Version V_5_5_2 = new Version(V_5_5_2_ID, org.apache.lucene.util.Version.LUCENE_6_6_0);
-    public static final int V_5_5_3_ID_UNRELEASED = 5050399;
-    public static final Version V_5_5_3_UNRELEASED = new Version(V_5_5_3_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_6_0);
-    public static final int V_5_6_0_ID_UNRELEASED = 5060099;
-    public static final Version V_5_6_0_UNRELEASED = new Version(V_5_6_0_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_6_0);
-    public static final Version CURRENT = V_5_6_0_UNRELEASED;
+    public static final int V_5_5_3_ID = 5050399;
+    public static final Version V_5_5_3 = new Version(V_5_5_3_ID, org.apache.lucene.util.Version.LUCENE_6_6_0);
+    public static final int V_5_6_0_ID = 5060099;
+    public static final Version V_5_6_0 = new Version(V_5_6_0_ID, org.apache.lucene.util.Version.LUCENE_6_6_0);
+    public static final int V_5_6_1_ID = 5060199;
+    public static final Version V_5_6_1 = new Version(V_5_6_1_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
+    public static final int V_5_6_2_ID = 5060299;
+    public static final Version V_5_6_2 = new Version(V_5_6_2_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
+    public static final int V_5_6_3_ID = 5060399;
+    public static final Version V_5_6_3 = new Version(V_5_6_3_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
+    public static final int V_5_6_4_ID = 5060499;
+    public static final Version V_5_6_4 = new Version(V_5_6_4_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
+    public static final int V_5_6_5_ID = 5060599;
+    public static final Version V_5_6_5 = new Version(V_5_6_5_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
+    public static final int V_5_6_6_ID = 5060699;
+    public static final Version V_5_6_6 = new Version(V_5_6_6_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
+    public static final int V_5_6_7_ID = 5060799;
+    public static final Version V_5_6_7 = new Version(V_5_6_7_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
+    public static final int V_5_6_8_ID = 5060899;
+    public static final Version V_5_6_8 = new Version(V_5_6_8_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
+    public static final int V_5_6_9_ID = 5060999;
+    public static final Version V_5_6_9 = new Version(V_5_6_9_ID, org.apache.lucene.util.Version.LUCENE_6_6_1);
+    public static final int V_5_6_10_ID_UNRELEASED = 5061099;
+    public static final Version V_5_6_10_UNRELEASED = new Version(V_5_6_10_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_6_1);
+    public static final Version CURRENT = V_5_6_10_UNRELEASED;
 
     // unreleased versions must be added to the above list with the suffix _UNRELEASED (with the exception of CURRENT)
 
@@ -157,10 +177,30 @@ public class Version implements Comparable<Version> {
 
     public static Version fromId(int id) {
         switch (id) {
-            case V_5_6_0_ID_UNRELEASED:
-                return V_5_6_0_UNRELEASED;
-            case V_5_5_3_ID_UNRELEASED:
-                return V_5_5_3_UNRELEASED;
+            case V_5_6_10_ID_UNRELEASED:
+                return V_5_6_10_UNRELEASED;
+            case V_5_6_9_ID:
+                return V_5_6_9;
+            case V_5_6_8_ID:
+                return V_5_6_8;
+            case V_5_6_7_ID:
+                return V_5_6_7;
+            case V_5_6_6_ID:
+                return V_5_6_6;
+            case V_5_6_5_ID:
+                return V_5_6_5;
+            case V_5_6_4_ID:
+                return V_5_6_4;
+            case V_5_6_3_ID:
+                return V_5_6_3;
+            case V_5_6_2_ID:
+                return V_5_6_2;
+            case V_5_6_1_ID:
+                return V_5_6_1;
+            case V_5_6_0_ID:
+                return V_5_6_0;
+            case V_5_5_3_ID:
+                return V_5_5_3;
             case V_5_5_2_ID:
                 return V_5_5_2;
             case V_5_5_1_ID:

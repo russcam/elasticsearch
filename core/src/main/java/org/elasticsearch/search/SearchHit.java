@@ -67,7 +67,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.parseStoredFieldsValue;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsValue;
 import static org.elasticsearch.search.fetch.subphase.highlight.HighlightField.readHighlightField;
 
 /**
@@ -477,6 +477,14 @@ public class SearchHit implements Streamable, ToXContentObject, Iterable<SearchH
     }
 
     public void shard(SearchShardTarget target) {
+        if (innerHits != null) {
+            for (SearchHits innerHits : innerHits.values()) {
+                for (SearchHit innerHit : innerHits) {
+                    innerHit.shard(target);
+                }
+            }
+        }
+
         this.shard = target;
         if (target != null) {
             this.index = target.getIndex();
@@ -572,18 +580,17 @@ public class SearchHit implements Streamable, ToXContentObject, Iterable<SearchH
             builder.field(Fields._SHARD, shard.getShardId());
             builder.field(Fields._NODE, shard.getNodeIdText());
         }
+        if (index != null) {
+            builder.field(Fields._INDEX, RemoteClusterAware.buildRemoteIndexName(clusterAlias, index));
+        }
+        if (type != null) {
+            builder.field(Fields._TYPE, type);
+        }
+        if (id != null) {
+            builder.field(Fields._ID, id);
+        }
         if (nestedIdentity != null) {
             nestedIdentity.toXContent(builder, params);
-        } else {
-            if (index != null) {
-                builder.field(Fields._INDEX, RemoteClusterAware.buildRemoteIndexName(clusterAlias, index));
-            }
-            if (type != null) {
-                builder.field(Fields._TYPE, type);
-            }
-            if (id != null) {
-                builder.field(Fields._ID, id);
-            }
         }
         if (version != -1) {
             builder.field(Fields._VERSION, version);
@@ -759,7 +766,7 @@ public class SearchHit implements Streamable, ToXContentObject, Iterable<SearchH
                     fieldMap.put(field.getName(), field);
                 }, (p, c) -> {
                     List<Object> values = new ArrayList<>();
-                    values.add(parseStoredFieldsValue(p));
+                    values.add(parseFieldsValue(p));
                     return new SearchHitField(metadatafield, values);
                 }, new ParseField(metadatafield), ValueType.VALUE);
             }
@@ -773,7 +780,7 @@ public class SearchHit implements Streamable, ToXContentObject, Iterable<SearchH
             ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
             List<Object> values = new ArrayList<>();
             while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                values.add(parseStoredFieldsValue(parser));
+                values.add(parseFieldsValue(parser));
             }
             fields.put(fieldName, new SearchHitField(fieldName, values));
         }
@@ -809,7 +816,7 @@ public class SearchHit implements Streamable, ToXContentObject, Iterable<SearchH
         String description = null;
         List<Explanation> details = new ArrayList<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, () -> parser.getTokenLocation());
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
             String currentFieldName = parser.currentName();
             token = parser.nextToken();
             if (Fields.VALUE.equals(currentFieldName)) {
@@ -817,7 +824,7 @@ public class SearchHit implements Streamable, ToXContentObject, Iterable<SearchH
             } else if (Fields.DESCRIPTION.equals(currentFieldName)) {
                 description = parser.textOrNull();
             } else if (Fields.DETAILS.equals(currentFieldName)) {
-                ensureExpectedToken(XContentParser.Token.START_ARRAY, token, () -> parser.getTokenLocation());
+                ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser::getTokenLocation);
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     details.add(parseExplanation(parser));
                 }
@@ -982,9 +989,9 @@ public class SearchHit implements Streamable, ToXContentObject, Iterable<SearchH
         private static final String FIELD = "field";
         private static final String OFFSET = "offset";
 
-        private Text field;
-        private int offset;
-        private NestedIdentity child;
+        private final Text field;
+        private final int offset;
+        private final NestedIdentity child;
 
         public NestedIdentity(String field, int offset, NestedIdentity child) {
             this.field = new Text(field);

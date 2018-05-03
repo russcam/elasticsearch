@@ -42,6 +42,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -65,6 +66,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportServiceAdapter;
 import org.elasticsearch.transport.TransportSettings;
@@ -391,9 +393,24 @@ public class Netty4Transport extends TcpTransport<Channel> {
     }
 
     @Override
-    protected void sendMessage(Channel channel, BytesReference reference, Runnable sendListener) {
-        final ChannelFuture future = channel.writeAndFlush(Netty4Utils.toByteBuf(reference));
-        future.addListener(f -> sendListener.run());
+    protected void sendMessage(Channel channel, BytesReference reference, ActionListener<Channel> listener) {
+        if (channel.eventLoop().isShuttingDown()) {
+            listener.onFailure(new TransportException("Cannot send message, event loop is shutting down."));
+        } else {
+            final ChannelFuture future = channel.writeAndFlush(Netty4Utils.toByteBuf(reference));
+            future.addListener(f -> {
+            if (f.isSuccess()) {
+                listener.onResponse(channel);
+            } else {
+                final Throwable cause = f.cause();
+                Netty4Utils.maybeDie(cause);
+                logger.warn((Supplier<?>) () ->
+                    new ParameterizedMessage("write and flush on the network layer failed (channel: {})", channel), cause);
+                assert cause instanceof Exception;
+                listener.onFailure((Exception) cause);
+            }
+            });
+        }
     }
 
     @Override
@@ -463,6 +480,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
+            ch.pipeline().addLast("logging", new ESLoggingHandler());
             ch.pipeline().addLast("size", new Netty4SizeHeaderFrameDecoder());
             // using a dot as a prefix means this cannot come from any settings parsed
             ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this, ".client"));
@@ -488,6 +506,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
+            ch.pipeline().addLast("logging", new ESLoggingHandler());
             ch.pipeline().addLast("open_channels", Netty4Transport.this.serverOpenChannels);
             ch.pipeline().addLast("size", new Netty4SizeHeaderFrameDecoder());
             ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this, name));

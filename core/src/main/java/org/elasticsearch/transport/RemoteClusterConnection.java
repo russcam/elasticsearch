@@ -23,6 +23,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
@@ -230,15 +231,19 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                     }
                 });
         };
-        if (connectedNodes.size() == 0) {
-            // just in case if we are not connected for some reason we try to connect and if we fail we have to notify the listener
-            // this will cause some back pressure on the search end and eventually will cause rejections but that's fine
-            // we can't proceed with a search on a cluster level.
-            // in the future we might want to just skip the remote nodes in such a case but that can already be implemented on the
-            // caller end since they provide the listener.
-            ensureConnected(ActionListener.wrap((x) -> runnable.run(), listener::onFailure));
-        } else {
-            runnable.run();
+        try {
+            if (connectedNodes.size() == 0) {
+                // just in case if we are not connected for some reason we try to connect and if we fail we have to notify the listener
+                // this will cause some back pressure on the search end and eventually will cause rejections but that's fine
+                // we can't proceed with a search on a cluster level.
+                // in the future we might want to just skip the remote nodes in such a case but that can already be implemented on the
+                // caller end since they provide the listener.
+                ensureConnected(ActionListener.wrap((x) -> runnable.run(), listener::onFailure));
+            } else {
+                runnable.run();
+            }
+        } catch (Exception ex) {
+            listener.onFailure(ex);
         }
     }
 
@@ -265,6 +270,11 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             @Override
             public void close() throws IOException {
                 assert false: "proxy connections must not be closed";
+            }
+
+            @Override
+            public Version getVersion() {
+                return connection.getVersion();
             }
         };
     }
