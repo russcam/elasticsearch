@@ -22,10 +22,10 @@ parser grammar PainlessParser;
 options { tokenVocab=PainlessLexer; }
 
 source
-    : function* statement* EOF
+    : fun* statement* EOF
     ;
 
-function
+fun
     : decltype ID parameters block
     ;
 
