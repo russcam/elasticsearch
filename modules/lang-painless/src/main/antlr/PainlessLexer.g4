@@ -20,8 +20,8 @@
 lexer grammar PainlessLexer;
 
 @header {
-var SlashStrategy = require("SlashStrategy");
-var Definition = require("Definition");
+var SlashStrategy = require('./SlashStrategy');
+var Definition = require('./Definition');
 }
 
 WS: [ \t\n\r]+ -> skip;
